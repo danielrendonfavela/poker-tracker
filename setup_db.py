@@ -45,6 +45,7 @@ def create_database():
     cursor.execute("""
         CREATE TABLE records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            year INTEGER DEFAULT 2025,
             week TEXT NOT NULL,
             player_id INTEGER,
             club_id INTEGER NOT NULL,
@@ -79,6 +80,15 @@ def create_database():
     cursor.execute("CREATE INDEX idx_records_week ON records(week)")
     cursor.execute("CREATE INDEX idx_nickname_mappings_nick ON nickname_mappings(original_nick)")
     print("✅ Índices creados")
+    
+    # Tabla de configuración de la app
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS app_config (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+    print("✅ Tabla 'app_config' creada")
     
     conn.commit()
     conn.close()

@@ -76,6 +76,51 @@ def is_week_header(value) -> bool:
     return bool(re.search(pattern, val_str, re.IGNORECASE))
 
 
+def clean_week_label(raw_week: str) -> str:
+    """
+    Normaliza el formato de semana:
+    De: "23 OCT / 29 OCT"
+    A: "23/Oct/2025 - 29/Oct/2025"
+    """
+    if not raw_week:
+        return ""
+
+    # Diccionario de meses a formato corto Title Case (Feb, Mar, Apr...)
+    MONTHS = {
+        'ene': 'Jan', 'jan': 'Jan',
+        'feb': 'Feb',
+        'mar': 'Mar',
+        'abr': 'Apr', 'apr': 'Apr',
+        'may': 'May',
+        'jun': 'Jun',
+        'jul': 'Jul',
+        'ago': 'Aug', 'aug': 'Aug',
+        'sep': 'Sep', 'sept': 'Sep',
+        'oct': 'Oct',
+        'nov': 'Nov',
+        'dic': 'Dec', 'dec': 'Dec'
+    }
+    
+    parts = str(raw_week).split('/')
+    if len(parts) != 2:
+        return raw_week
+        
+    cleaned_parts = []
+    for part in parts:
+        match = re.search(r'(\d{1,2})\s*([a-zA-Z]{3,4})', part.strip())
+        if match:
+            day = match.group(1).zfill(2)
+            month_str = match.group(2).lower()[:3]
+            month = MONTHS.get(month_str, month_str.capitalize()) 
+            cleaned_parts.append(f"{day}/{month}/2025")
+        else:
+            cleaned_parts.append(part.strip())
+            
+    return f"{cleaned_parts[0]} - {cleaned_parts[1]}"
+
+
+
+
 def extract_week_blocks(df, header_row: int, col_indices: dict) -> list:
     """
     Extrae bloques de datos por semana.
@@ -91,7 +136,7 @@ def extract_week_blocks(df, header_row: int, col_indices: dict) -> list:
     # El encabezado tiene la primera semana
     first_week = df.iloc[header_row - 1, name_col]
     if pd.notna(first_week):
-        current_week = str(first_week).strip()
+        current_week = clean_week_label(str(first_week).strip())
     
     for row_idx in range(header_row, len(df)):
         row = df.iloc[row_idx]
@@ -103,7 +148,7 @@ def extract_week_blocks(df, header_row: int, col_indices: dict) -> list:
             # Guardar el bloque anterior
             if current_week and current_rows:
                 blocks.append((current_week, current_rows))
-            current_week = str(name_val).strip()
+            current_week = clean_week_label(str(name_val).strip())
             current_rows = []
             continue
         
@@ -247,13 +292,14 @@ def import_weekly_records():
                     nick = row_data['nick']
                     player_id = nick_to_player.get((nick.lower(), sheet_name))
                     
+                    
                     profit = row_data.get('profit', 0.0)
                     rake = row_data.get('rake', 0.0)
                     total = row_data.get('balance', profit - rake)  # Balance o calcular
                     
                     cursor.execute("""
-                        INSERT INTO records (week, player_id, club_id, raw_nickname, profit, rake, total)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO records (year, week, player_id, club_id, raw_nickname, profit, rake, total)
+                        VALUES (2025, ?, ?, ?, ?, ?, ?, ?)
                     """, (week, player_id, club_id, nick, profit, rake, total))
                     
                     sheet_records += 1
