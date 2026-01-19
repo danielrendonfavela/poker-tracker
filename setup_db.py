@@ -59,6 +59,20 @@ def create_database():
         )
     """)
     print("✅ Tabla 'records' creada")
+
+    # Tabla de deals de backing
+    cursor.execute("""
+        CREATE TABLE backing_deals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_id INTEGER NOT NULL,
+            deal_percentage REAL NOT NULL,
+            makeup_balance REAL DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (player_id) REFERENCES players(id)
+        )
+    """)
+    print("✅ Tabla 'backing_deals' creada")
     
     # Tabla de mapeo de nicknames (auxiliar)
     cursor.execute("""

@@ -5,7 +5,7 @@ import os
 import services.config_service as config_service
 
 # Importar vistas
-from views import dashboard, players, clubs, weekly, balance, records, data_entry, wizard
+from views import dashboard, players, clubs, weekly, balance, records, data_entry, wizard, backing
 
 def main():
     # Verificar si la app está configurada
@@ -43,16 +43,17 @@ def main():
     """, unsafe_allow_html=True)
 
     # Sidebar
-    st.sidebar.title(f"♠️ {club_name}")
-    st.sidebar.markdown("---")
-    
-    page = st.sidebar.radio(
-        "Navegación",
-        ["🏠 Dashboard", "👥 Jugadores", "🏢 Clubes", "📅 Por Semana", "💰 Balance", "📝 Registros", "➕ Agregar Datos"]
-    )
-    
-    st.sidebar.markdown("---")
-    st.sidebar.caption("v2.1.0 (Modular + Wizard)")
+    with st.sidebar:
+        st.title(f"♠️ {club_name}")
+        st.markdown("---")
+        
+        page = st.radio(
+            "Navegación",
+            ["🏠 Dashboard", "👥 Jugadores", "🏢 Clubes", "📅 Por Semana", "💰 Balance", "📝 Registros", "➕ Agregar Datos", "🤝 Backing"]
+        )
+        
+        st.markdown("---")
+        st.caption("v2.1.0 (Modular + Wizard)")
 
     # Enrutador
     if page == "🏠 Dashboard":
@@ -69,6 +70,8 @@ def main():
         records.render_view()
     elif page == "➕ Agregar Datos":
         data_entry.render_view()
+    elif page == "🤝 Backing":
+        backing.render_view()
 
 if __name__ == "__main__":
     main()

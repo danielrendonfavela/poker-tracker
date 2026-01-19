@@ -48,9 +48,8 @@ def render_wizard():
                         )
                         
                         if success:
-                            st.balloons()
-                            st.success("¡Configuración exitosa!")
-                            time.sleep(1.5)
+                            st.toast("✅ ¡Configuración exitosa!", icon="🚀")
+                            time.sleep(1.0)
                             st.rerun()
                         else:
                             st.error("Hubo un error al guardar la configuración.")
