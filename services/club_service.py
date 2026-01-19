@@ -46,3 +46,13 @@ def load_nickname_count():
     count = cursor.fetchone()[0]
     conn.close()
     return count
+
+def get_clubs_summary():
+    """Retorna una lista simple de diccionarios con id y nombre del club."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, club_name FROM clubs ORDER BY club_name")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    return [{'id': row[0], 'name': row[1]} for row in rows]

@@ -3,114 +3,121 @@ import pandas as pd
 from services import player_service, backing_service, report_service
 
 def render_view():
-    st.title("🤝 Sistema de Backing")
+    st.title("🤝 Sistema de Backing (Liquidación Global)")
     
-    tab1, tab2 = st.tabs(["⚙️ Configuración", "📊 Estado de Cuenta"])
+    tab1, tab2, tab3 = st.tabs(["⚙️ Configuración", "📊 Estado de Cuenta", "📅 Corte Semanal"])
     
     with tab1:
         render_config_tab()
-    
     with tab2:
         render_status_tab()
+    with tab3:
+        render_settlement_tab()
 
 def render_config_tab():
     st.header("Configurar Deal")
-    
     players = player_service.get_all_players_dict()
     
-    col1, col2 = st.columns(2)
-    
+    col1, col2, col3 = st.columns(3)
     with col1:
         selected_player = st.selectbox("Seleccionar Jugador", ["Seleccionar..."] + list(players.keys()))
-    
     with col2:
         deal_pct = st.number_input("Porcentaje Jugador (%)", min_value=0, max_value=100, value=50, step=5)
+    with col3:
+        initial_makeup = st.number_input("Deuda Inicial (Makeup)", value=0.0, step=100.0)
     
     if selected_player != "Seleccionar...":
         player_id = players[selected_player]
         current_deal = backing_service.get_active_deal(player_id)
-        
         if current_deal:
-            st.info(f"ℹ️ Este jugador ya tiene un deal activo del **{current_deal['deal_percentage']*100:.0f}%**. Al guardar se actualizará.")
+            st.info(f"ℹ️ Deal Actual: **{current_deal['deal_percentage']*100:.0f}%** | Makeup: **${current_deal['makeup_balance']:,.2f}**")
         
-        if st.button("Guardar Deal"):
-            # Convertir a decimal (50 -> 0.5)
-            pct_decimal = deal_pct / 100.0
-            if backing_service.create_or_update_deal(player_id, pct_decimal):
-                st.success(f"Deal creado para {selected_player} al {deal_pct}%")
+        if st.button("Guardar / Actualizar Deal"):
+            if backing_service.create_or_update_deal(player_id, deal_pct/100.0, initial_makeup):
+                st.success(f"Deal guardado para {selected_player}")
                 st.rerun()
 
 def render_status_tab():
     st.header("Estado de Jugadores con Backing")
-    
     deals = backing_service.get_all_deals_status()
-    
     if not deals:
-        st.info("No hay jugadores con deals activos.")
+        st.info("No hay deals activos.")
         return
-    
-    # Preparamos datos para la tabla
-    data = []
-    
-    # Cargar datos financieros generales (esto podría optimizarse luego)
-    # Por ahora, calcularemos un estimado basado en TODOS los registros históricos del jugador
-    # OJO: En un sistema real, el backing empieza desde cierta fecha. 
-    # Para este MVP, asumiremos que se calcula sobre el total histórico si no hay fecha de inicio,
-    # O mejor aún: Mostramos el Makeup Actual que viene de la DB y una simulación de la última semana.
-    
-    last_week_stats = report_service.load_week_details(week="30/Oct/2025 - 05/Nov/2025") # TODO: Get real last week dynamically
-    # Para simplificar el MVP, mostraremos solo la tabla de Makeup Actual
-    
-    for deal in deals:
-        data.append({
-            "Jugador": deal['player'],
-            "Deal %": f"{deal['deal_percentage']*100:.0f}%",
-            "Makeup (Deuda)": deal['current_makeup']
-        })
         
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(deals)
+    df['deal_percentage'] = (df['deal_percentage'] * 100).astype(int).astype(str) + '%'
+    df.rename(columns={'player': 'Jugador', 'deal_percentage': 'Deal %', 'current_makeup': 'Makeup (Deuda)'}, inplace=True)
     
-    # Formato condicional para Makeup (Rojo si > 0)
     st.dataframe(
-        df.style.format({
-            "Makeup (Deuda)": "${:,.2f}"
-        }).applymap(lambda v: 'color: red; font-weight: bold' if v > 0 else '', subset=['Makeup (Deuda)']),
+        df[['Jugador', 'Deal %', 'Makeup (Deuda)']].style.format({"Makeup (Deuda)": "${:,.2f}"})
+        .applymap(lambda v: 'color: red; font-weight: bold' if v > 0 else '', subset=['Makeup (Deuda)']),
         use_container_width=True
     )
+
+def render_settlement_tab():
+    st.header("Corte Semanal Global")
+    st.caption("Selecciona una semana y un jugador para realizar el corte final (todos los clubes incluidos).")
     
-    st.markdown("---")
-    st.subheader("🔍 Simuador de Cálculo (Prueba)")
-    st.caption("Usa esto para verificar cómo se distribuiría una ganancia/pérdida hipotética.")
+    # 1. Seleccionar Semana
+    weeks_data = report_service.get_available_weeks()
+    # weeks_data es lista de tuplas (week, year). Extraemos solo week.
+    weeks = [w[0] for w in weeks_data]
+    selected_week = st.selectbox("Semana de Corte", weeks)
     
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        sim_profit = st.number_input("Profit de la Semana", value=0.0, step=100.0)
-    with c2:
-        sim_deal = st.number_input("Deal %", value=50) / 100.0
-    with c3:
-        sim_makeup = st.number_input("Makeup Inicial", value=1000.0, step=100.0)
+    if not selected_week:
+        return
+
+    # 2. Seleccionar Jugador (Solo los que jugaron esa semana)
+    players = backing_service.get_players_with_activity(selected_week)
+    if not players:
+        st.warning("No hay actividad registrada para esta semana.")
+        return
         
-    if st.button("Calcular Distribución"):
-        result = backing_service.calculate_weekly_share(sim_profit, sim_deal, sim_makeup)
+    player_options = {p['name']: p['id'] for p in players}
+    selected_player_name = st.selectbox("Jugador", ["Seleccionar..."] + list(player_options.keys()))
+    
+    if selected_player_name != "Seleccionar...":
+        player_id = player_options[selected_player_name]
         
-        r1, r2, r3, r4 = st.columns(4)
-        r1.metric(
-            "Para Jugador", 
-            f"${result['player_share']:,.2f}",
-            help="Dinero libre para el jugador (Ganancia - Deuda Pagada - % Club)."
-        )
-        r2.metric(
-            "Para Club/Backer", 
-            f"${result['club_share']:,.2f}",
-            help="Total para el Backer (Su % de Ganancia + Deuda Recuperada)."
-        )
-        r3.metric(
-            "Cambio en Deuda", 
-            f"${result['makeup_change']:,.2f}",
-            help="Cómo cambió la deuda: Negativo (-) significa que se pagó deuda, Positivo (+) que aumentó."
-        )
-        r4.metric(
-            "Nueva Deuda", 
-            f"${result['new_makeup']:,.2f}",
-            help="Deuda total acumulada (Makeup) para la siguiente semana."
-        )
+        st.markdown("---")
+        st.subheader(f"Liquidación para: {selected_player_name}")
+        
+        # Inputs de Ajuste
+        c1, c2 = st.columns(2)
+        bonuses = c1.number_input("Bonos / Rakeback Extra (+)", value=0.0, step=10.0)
+        fees = c2.number_input("Fees / Jackpots / Seguros (-)", value=0.0, step=10.0)
+        
+        # PREVIEW AUTOMÁTICO
+        preview = backing_service.preview_settlement(player_id, selected_week, bonuses, fees)
+        
+        if preview:
+            # Mostrar Resumen
+            st.markdown("#### 👁️ Vista Previa del Corte")
+            
+            # Fila 1: Bruto -> Neto
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Profit Bruto (Mesa)", f"${preview['total_gross_profit']:,.2f}")
+            col2.metric("Bonos", f"+${preview['bonuses']:,.2f}")
+            col3.metric("Fees", f"-${preview['fees']:,.2f}")
+            col4.metric("Resultado Neto", f"${preview['net_result']:,.2f}", 
+                        delta_color="normal" if preview['net_result'] >= 0 else "inverse")
+            
+            st.divider()
+            
+            # Fila 2: Distribución
+            c_ply, c_club, c_debt = st.columns(3)
+            c_ply.metric("💰 Para Jugador", f"${preview['player_share']:,.2f}")
+            c_club.metric("🏦 Para Club/Backer", f"${preview['club_share']:,.2f}", help="Incluye recuperación de deuda")
+            c_debt.metric("📉 Nueva Deuda (Makeup)", f"${preview['new_makeup']:,.2f}", 
+                          delta=f"{preview['makeup_change']:,.2f} (Cambio)")
+            
+            # Botón Guardar
+            st.write("")
+            if st.button("💾 CONFIRMAR Y GUARDAR CORTE", type="primary"):
+                if backing_service.save_settlement(player_id, selected_week, bonuses, fees):
+                    st.success("✅ Corte guardado exitosamente. La deuda ha sido actualizada.")
+                    # TODO: Podríamos mostrar historial de settlements aquí
+                else:
+                    st.error("Error al guardar. ¿Ya existe un corte para esta semana?")
+        else:
+            st.warning("⚠️ Este jugador no tiene un Deal de Backing activo. Configúralo primero en la pestaña 'Configuración'.")

@@ -53,6 +53,12 @@ def create_database():
             profit REAL DEFAULT 0,
             rake REAL DEFAULT 0,
             total REAL DEFAULT 0,
+            bonuses REAL DEFAULT 0,
+            fees REAL DEFAULT 0,
+            net_result REAL DEFAULT 0,
+            player_share REAL DEFAULT 0,
+            club_share REAL DEFAULT 0,
+            makeup_change REAL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (player_id) REFERENCES players(id),
             FOREIGN KEY (club_id) REFERENCES clubs(id)
@@ -73,6 +79,26 @@ def create_database():
         )
     """)
     print("✅ Tabla 'backing_deals' creada")
+    
+    # Tabla de liquidaciones semanales (Global Settlement)
+    cursor.execute("""
+        CREATE TABLE weekly_settlements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            week TEXT NOT NULL,
+            player_id INTEGER NOT NULL,
+            total_gross_profit REAL DEFAULT 0,
+            bonuses REAL DEFAULT 0,
+            fees REAL DEFAULT 0,
+            net_result REAL DEFAULT 0,
+            player_share REAL DEFAULT 0,
+            club_share REAL DEFAULT 0,
+            makeup_change REAL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (player_id) REFERENCES players(id),
+            UNIQUE(week, player_id)
+        )
+    """)
+    print("✅ Tabla 'weekly_settlements' creada")
     
     # Tabla de mapeo de nicknames (auxiliar)
     cursor.execute("""
